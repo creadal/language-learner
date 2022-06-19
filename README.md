@@ -1,2 +1,3 @@
 # language-learner
-App for translating, learning languages and improving vocabulary.
+[DEVELOPMENT IN PROGRESS]
+`webapp/` - HTTP REST-API web application written in Go programming language.
