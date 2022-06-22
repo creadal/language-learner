@@ -1,0 +1,89 @@
+<html>
+    <head>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+        <title>
+            Main page
+        </title>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="navbar-brand px-3" href="#"><h3>Main Page</h3></div>
+            <a class="nav-link" href="https://github.com/creadal/language-learner">GitHub</a>
+                <ul class="navbar-nav ms-auto m-2">
+                  <li class="nav-item">
+                    <a class="nav-link" href="/profile">[{{ .Username}}]</span></a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="/settings">Settings</span></a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="/logout">Log out</span></a>
+                  </li>
+                </ul>
+        </nav>
+        <div class="container-fluid w-100 border">
+            <div class="row">
+                <div class="col-sm border">
+                    <div class="row border-bottom">
+
+                        <div class="p-4 w-auto">
+                            <h3 class="h3">
+                                Translate
+                            </h3>
+                            <form method="POST" action="/translate">
+                                <div class="input-group">
+                                    <div class="form-outline">
+                                        <input type="search" id="word" name="word" class="form-control" placeholder="Word"/>
+                                    </div>
+                                    <div>
+                                        <button type="submit" class="btn btn-primary ms-auto">
+                                            Translate
+                                        </button>
+                                    </div>
+                                  </div>
+                            </form>
+                        </div>
+
+                    </div>
+                    <div class="row">
+
+                        <div class="p-4 w-auto">
+                            <h3 class="h3">
+                                Test
+                            </h3>
+                            <form action="/test">
+                                <div>
+                                    <button type="submit" class="btn btn-primary ms-auto">
+                                        Start Test
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                    </div>
+                    
+                </div>
+                <div class="col-sm border">
+                    <div class="p-4">
+                        <div class="m-auto">
+                            <h3 class="h3 ms-auto m-2">Tasks</h2>
+                            <ul class="list-group">
+                                {{range .Tasks}}
+                                    {{if .Done}}
+                                        <li class="list-group-item border border-success m-2">
+                                            {{ .Title}}
+                                        </li>
+                                    {{else}}
+                                        <li class="list-group-item border m-2">
+                                            {{ .Title}}
+                                        </li>
+                                {{end}}
+                              </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </body>
+</html>

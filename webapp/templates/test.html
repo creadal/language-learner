@@ -1,0 +1,23 @@
+<html>
+    <head>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+        <title>
+            Test
+        </title>
+    </head>
+    <body>
+        <div class="container w-25 mt-4 mb-4 p-4 border">
+            <h2 class="h2">{{ .Word}}</h2>
+            <form method="POST" action="/test">
+                <div class="form-outline mb-4 mt-4">
+                    <input id="translation" class="form-control" name="translation" placeholder="Translation" autofocus>
+                </div>
+                <button class="btn btn-primary btn-block mb-4">Submit</button>
+            </form>
+            <div class="text-center">
+                <a href="/" id="create-account">Go back</a>
+            </div>
+        </div>
+        
+    </body>
+</html>
