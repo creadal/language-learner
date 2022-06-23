@@ -1,0 +1,65 @@
+<html>
+    <head>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+        <title>
+            Main page
+        </title>
+        <style>
+            .task:hover {
+                background-color: #c3dbff;
+                transition: 0.3s;
+            }
+        </style>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="navbar-brand px-3" href="#"><h3>Teacher Dashboard</h3></div>
+            <a class="nav-link" href="https://github.com/creadal/language-learner">GitHub</a>
+                <ul class="navbar-nav ms-auto m-2">
+                  <li class="nav-item">
+                    <a class="nav-link" href="/logout">Log out</span></a>
+                  </li>
+                </ul>
+        </nav>
+        <div class="container-fluid w-100 border">
+            <div class="row">
+                <div class="col border">
+                    <div class="p-4">
+                        <div class="m-auto">
+                            <h3 class="h3 ms-auto m-2">Users</h3>
+                                    <ul class="list-group">
+                                        {{range .Users}}
+                                                <li class="list-group-item border rounded m-2 task" onclick="location.href = '/userinfo?username={{ .Username}}'">
+                                                        {{ .Username}}
+                                                </li>
+                                        {{end}}
+                                    </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col border">
+                    <div class="p-4">
+                        <div class="m-auto">
+                            <h3 class="h3 ms-auto m-2">
+                                Tasks
+                                <a href="/edittask">[+]</a> 
+                            </h3>
+                                {{if .Empty}}
+                                    No task yet.
+                                {{else}}
+                                    <ul class="list-group">
+                                        {{range .Tasks}}
+                                                <li class="list-group-item border rounded m-2 task" onclick="location.href = '/edittask?title={{ .Title}}'">
+                                                        {{ .Title}} <a class="text-danger" href="/deletetask?title={{ .Title}}">[-]</a>
+                                                </li>
+                                        {{end}}
+                                    </ul>
+                                {{end}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </body>
+</html>

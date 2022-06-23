@@ -1,0 +1,43 @@
+<html>
+    <head>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+        <title>
+            Main page
+        </title>
+        <style>
+            .task:hover {
+                background-color: #c3dbff;
+                transition: 0.3s;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container border text-center">
+            <h3>{{ .Username}}</h3>
+            <div class="row border">
+                <div class="col border">
+                    <b>Title</b>
+                </div>
+                <div class="col border">
+                    <b>Status</b>
+                </div>
+                <div class="col border">
+                    <b>Answer</b>
+                </div>
+            </div>
+            {{range .Tasks}}
+            <div class="row border">
+                <div class="col border">
+                    {{ .Title}}
+                </div>
+                <div class="col border">
+                    {{if .Done}} &#10003; {{end}}
+                </div>
+                <div class="col border">
+                    {{if .Done}} {{ .Answer}} {{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </body>
+</html>

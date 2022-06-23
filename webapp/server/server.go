@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"os"
 	"regexp"
 
 	"github.com/gorilla/mux"
@@ -41,12 +39,14 @@ func newServer(db_url string) *Server {
 }
 
 func connect_db(url string) *pgxpool.Pool {
-	var err error
-	conn, err := pgxpool.Connect(context.Background(), url)
+	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connection to database: %v\n", err)
-		os.Exit(1)
+		fmt.Println("config Database Fail")
+		fmt.Print(err)
 	}
+
+	conn, err := pgxpool.ConnectConfig(context.Background(), config)
+
 	return conn
 }
 
@@ -58,27 +58,60 @@ func (s Server) MainPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	} else {
-		html_path := "./templates/main.html"
+		username := session.Values["username"].(string)
+
+		teacher := false
+		rows, err := s.conn.Query(context.Background(), "select * from teachers where username = $1", username)
+		if err != nil {
+			fmt.Println(err)
+		}
+		for rows.Next() {
+			teacher = true
+		}
+		rows.Close()
+
+		var html_path string
+		var users []UserData
+		if !teacher {
+			html_path = "./templates/main.html"
+		} else {
+			html_path = "./templates/teachers_main.html"
+			rows, _ = s.conn.Query(context.Background(), "select users.username from users left join teachers on users.username = teachers.username where teachers.username is NULL")
+			for rows.Next() {
+				var _username string
+				rows.Scan(&_username)
+				users = append(users, UserData{Username: _username})
+			}
+		}
+		rows.Close()
+
 		t, err := template.ParseFiles(html_path)
 		if err != nil {
 			fmt.Println(err)
 		}
 		tasks := []TaskData{}
-		// done_tasks := []Task{}
-		rows, _ := s.conn.Query(context.Background(), "select title, body from tasks")
+		rows, _ = s.conn.Query(context.Background(), "select title, body from tasks")
 
 		var task TaskData
 		added := false
 		for rows.Next() {
 			rows.Scan(&task.Title, &task.Body)
+			rows2, _ := s.conn.Query(context.Background(), "select * from answers where username = $1 and task = $2", username, task.Title)
+			done := false
+			for rows2.Next() {
+				done = true
+			}
+			task.Done = done
 			tasks = append(tasks, task)
 			added = true
 		}
+		rows.Close()
 
 		data := MainData{
-			Username: session.Values["username"].(string),
+			Username: username,
 			Tasks:    tasks,
 			Empty:    !added,
+			Users:    users,
 		}
 
 		t.Execute(w, data)
@@ -183,6 +216,7 @@ func (s Server) RegisterProcedure(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	rows.Close()
 	if !found {
 		password := r.PostFormValue("password")
 		_, err := s.conn.Query(context.Background(),
@@ -203,10 +237,6 @@ func (s Server) RegisterProcedure(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t.Execute(w, nil)
-}
-
-func (s Server) SettingsPage(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "This is settings page")
 }
 
 func (s Server) ProfilePage(w http.ResponseWriter, r *http.Request) {
@@ -237,14 +267,6 @@ func (s Server) ProfilePage(w http.ResponseWriter, r *http.Request) {
 
 		t.Execute(w, data)
 	}
-}
-
-func (s Server) UsersPage(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "This is users page")
-}
-
-func (s Server) LessonPage(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "This is lesson page")
 }
 
 func (s Server) Translate(w http.ResponseWriter, r *http.Request) {
@@ -298,6 +320,7 @@ func (s Server) Translate(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 				}
+				rows.Close()
 				if !found {
 					_, err = s.conn.Query(context.Background(), "insert into words values ($1, $2, $3, 1)", username, word, names[1][6:len(names[1])-7])
 				}
@@ -361,6 +384,7 @@ func (s Server) Test(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Println(err)
 		}
+		rows.Close()
 
 		t.Execute(w, data)
 	}
@@ -430,6 +454,7 @@ func (s Server) Task(w http.ResponseWriter, r *http.Request) {
 			answered = true
 			rows.Scan(&answer)
 		}
+		rows.Close()
 		data := TaskData{
 			Title:  title,
 			Body:   body,
@@ -462,6 +487,7 @@ func (s Server) TaskSubmit(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			exist = true
 		}
+		rows.Close()
 		if exist {
 			s.conn.QueryRow(context.Background(), "update answers set answer = $1 where task = $2 and username = $3", answer, title, username)
 
@@ -469,6 +495,130 @@ func (s Server) TaskSubmit(w http.ResponseWriter, r *http.Request) {
 		} else {
 			s.conn.QueryRow(context.Background(), "insert into answers values ($1, $2, $3)", username, title, answer)
 		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+}
+
+func (s Server) EditTask(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.store.Get(r, "cookie-name")
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	} else {
+		var title, body string
+		title_l := r.URL.Query()["title"]
+		if len(title_l) > 0 {
+			title = title_l[0]
+			rows, _ := s.conn.Query(context.Background(), "select body from tasks where title = $1", title)
+			for rows.Next() {
+				rows.Scan(&body)
+			}
+			rows.Close()
+		}
+		html_path := "./templates/edittask.html"
+		t, err := template.ParseFiles(html_path)
+		if err != nil {
+			fmt.Println(err)
+		}
+		data := TaskData{Title: title, Body: body}
+
+		t.Execute(w, data)
+	}
+}
+
+func (s Server) SaveTask(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.store.Get(r, "cookie-name")
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	} else {
+		var title string
+		title_l := r.URL.Query()["title"]
+		if len(title_l) > 0 {
+			title = title_l[0]
+			rows, err := s.conn.Query(context.Background(), "delete from tasks where title = $1", title)
+			if err != nil {
+				fmt.Println(err)
+			}
+			rows.Close()
+		}
+		new_title := r.PostFormValue("title")
+		body := r.PostFormValue("body")
+
+		rows, err := s.conn.Query(context.Background(), "insert into tasks values ($1, $2)", new_title, body)
+		if err != nil {
+			fmt.Println(err)
+		}
+		rows.Close()
+		rows, err = s.conn.Query(context.Background(), "update answers set task = $1 where task = $2", new_title, title)
+		if err != nil {
+			fmt.Println(err)
+		}
+		rows.Close()
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+}
+
+func (s Server) UserInfo(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.store.Get(r, "cookie-name")
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	} else {
+		var tasks []TaskData
+		username := r.URL.Query()["username"][0]
+
+		rows, _ := s.conn.Query(context.Background(), "select title from tasks")
+		for rows.Next() {
+			var title string
+			rows.Scan(&title)
+			task := TaskData{Title: title, Done: false}
+			tasks = append(tasks, task)
+		}
+		rows.Close()
+		rows, _ = s.conn.Query(context.Background(), "select task, answer from answers where username = $1", username)
+		for rows.Next() {
+			var title, answer string
+			rows.Scan(&title, &answer)
+
+			for i, t := range tasks {
+				if title == t.Title {
+					tasks[i].Done = true
+					tasks[i].Answer = answer
+				}
+			}
+		}
+		rows.Close()
+
+		data := UserData{Username: username, Tasks: tasks}
+		html_path := "./templates/userinfo.html"
+		t, err := template.ParseFiles(html_path)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		t.Execute(w, data)
+	}
+}
+
+func (s Server) DeleteTask(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.store.Get(r, "cookie-name")
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	} else {
+		title := r.URL.Query()["title"][0]
+		rows, _ := s.conn.Query(context.Background(),
+			"delete from tasks where title = $1", title)
+		rows.Close()
+		rows, _ = s.conn.Query(context.Background(),
+			"delete from answers where task = $1", title)
+		rows.Close()
+
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
 }
@@ -489,12 +639,15 @@ func (s Server) createRouter() {
 	s.router.HandleFunc("/task", s.Task).Methods(("GET"))
 	s.router.HandleFunc("/task", s.TaskSubmit).Methods(("POST"))
 
+	s.router.HandleFunc("/edittask", s.EditTask).Methods(("GET"))
+	s.router.HandleFunc("/edittask", s.SaveTask).Methods(("POST"))
+	s.router.HandleFunc("/deletetask", s.DeleteTask).Methods(("GET"))
+
+	s.router.HandleFunc("/userinfo", s.UserInfo).Methods(("GET"))
+
 	s.router.HandleFunc("/delete_account", s.DeleteAccount).Methods(("GET"))
 
 	s.router.HandleFunc("/translate", s.Translate).Methods(("POST"))
 
-	s.router.HandleFunc("/settings", s.SettingsPage).Methods(("GET"))
 	s.router.HandleFunc("/profile", s.ProfilePage).Methods(("GET"))
-	s.router.HandleFunc("/users", s.UsersPage).Methods(("GET"))
-	s.router.HandleFunc("/lesson", s.LessonPage).Methods(("GET"))
 }

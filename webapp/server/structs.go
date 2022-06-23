@@ -7,8 +7,14 @@ type TaskData struct {
 	Answer string
 }
 
+type UserData struct {
+	Username string
+	Tasks    []TaskData
+}
+
 type MainData struct {
 	Username string
+	Users    []UserData
 	Tasks    []TaskData
 	Empty    bool
 }
