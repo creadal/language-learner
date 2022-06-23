@@ -16,30 +16,6 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-type ViewData struct {
-	Username string
-}
-
-type TranslationData struct {
-	Word        string
-	Translation string
-}
-
-type TestData struct {
-	Word string
-}
-
-type TestCheckData struct {
-	Translation string
-}
-
-type ProfileData struct {
-	Username   string
-	Translated int
-	Learned    int
-	Unknown    int
-}
-
 // Server
 type Server struct {
 	store  sessions.CookieStore
@@ -87,8 +63,22 @@ func (s Server) MainPage(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Println(err)
 		}
-		data := ViewData{
+		tasks := []TaskData{}
+		// done_tasks := []Task{}
+		rows, _ := s.conn.Query(context.Background(), "select title, body from tasks")
+
+		var task TaskData
+		added := false
+		for rows.Next() {
+			rows.Scan(&task.Title, &task.Body)
+			tasks = append(tasks, task)
+			added = true
+		}
+
+		data := MainData{
 			Username: session.Values["username"].(string),
+			Tasks:    tasks,
+			Empty:    !added,
 		}
 
 		t.Execute(w, data)
@@ -280,7 +270,6 @@ func (s Server) Translate(w http.ResponseWriter, r *http.Request) {
 		}
 
 		names := re.FindAllString(string(body), 2)
-		fmt.Println(names)
 
 		var html_path string
 		var tr TranslationData
@@ -364,7 +353,6 @@ func (s Server) Test(w http.ResponseWriter, r *http.Request) {
 			data = TestData{Word: word[0]}
 			session.Values["translation"] = word[1]
 			session.Save(r, w)
-			fmt.Println(session.Values["translation"].(string))
 		} else {
 			html_path = "./templates/test_not_found.html"
 		}
@@ -420,6 +408,71 @@ func (s Server) TestCheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s Server) Task(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.store.Get(r, "cookie-name")
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	} else {
+		title := r.URL.Query()["title"][0]
+		username := session.Values["username"].(string)
+
+		var body string
+
+		row := s.conn.QueryRow(context.Background(), "select body from tasks where title = $1", title)
+		row.Scan(&body)
+
+		rows, _ := s.conn.Query(context.Background(), "select answer from answers where username = $1 and task = $2", username, title)
+		var answer string
+		answered := false
+		for rows.Next() {
+			answered = true
+			rows.Scan(&answer)
+		}
+		data := TaskData{
+			Title:  title,
+			Body:   body,
+			Done:   answered,
+			Answer: answer,
+		}
+		html_path := "./templates/task.html"
+		t, err := template.ParseFiles(html_path)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		t.Execute(w, data)
+	}
+}
+
+func (s Server) TaskSubmit(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.store.Get(r, "cookie-name")
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	} else {
+		username := session.Values["username"].(string)
+		answer := r.PostFormValue("answer")
+		title := r.URL.Query()["title"][0]
+
+		rows, _ := s.conn.Query(context.Background(), "select * from answers where username = $1 and task = $2", username, title)
+		exist := false
+		for rows.Next() {
+			exist = true
+		}
+		if exist {
+			s.conn.QueryRow(context.Background(), "update answers set answer = $1 where task = $2 and username = $3", answer, title, username)
+
+			fmt.Println(answer)
+		} else {
+			s.conn.QueryRow(context.Background(), "insert into answers values ($1, $2, $3)", username, title, answer)
+		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+}
+
 func (s Server) createRouter() {
 	s.router.HandleFunc("/", s.MainPage).Methods(("GET"))
 
@@ -432,6 +485,9 @@ func (s Server) createRouter() {
 
 	s.router.HandleFunc("/test", s.Test).Methods(("GET"))
 	s.router.HandleFunc("/test", s.TestCheck).Methods(("POST"))
+
+	s.router.HandleFunc("/task", s.Task).Methods(("GET"))
+	s.router.HandleFunc("/task", s.TaskSubmit).Methods(("POST"))
 
 	s.router.HandleFunc("/delete_account", s.DeleteAccount).Methods(("GET"))
 

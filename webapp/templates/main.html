@@ -4,6 +4,12 @@
         <title>
             Main page
         </title>
+        <style>
+            .task:hover {
+                background-color: #c3dbff;
+                transition: 0.3s;
+            }
+        </style>
     </head>
     <body>
         <nav class="navbar navbar-expand-lg navbar-light bg-light">
@@ -12,9 +18,6 @@
                 <ul class="navbar-nav ms-auto m-2">
                   <li class="nav-item">
                     <a class="nav-link" href="/profile">[{{ .Username}}]</span></a>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link" href="/settings">Settings</span></a>
                   </li>
                   <li class="nav-item">
                     <a class="nav-link" href="/logout">Log out</span></a>
@@ -66,19 +69,24 @@
                 <div class="col-sm border">
                     <div class="p-4">
                         <div class="m-auto">
-                            <h3 class="h3 ms-auto m-2">Tasks</h2>
-                            <ul class="list-group">
-                                {{range .Tasks}}
-                                    {{if .Done}}
-                                        <li class="list-group-item border border-success m-2">
-                                            {{ .Title}}
-                                        </li>
-                                    {{else}}
-                                        <li class="list-group-item border m-2">
-                                            {{ .Title}}
-                                        </li>
+                            <h3 class="h3 ms-auto m-2">Tasks</h3>
+                                {{if .Empty}}
+                                    No task yet.
+                                {{else}}
+                                    <ul class="list-group">
+                                        {{range .Tasks}}
+                                            {{if .Done}}
+                                                <li class="list-group-item border border-success rounded m-2 task" onclick="location.href = '/task?title={{ .Title}}'">
+                                                        {{ .Title}}
+                                                </li>
+                                            {{else}}
+                                                <li class="list-group-item border rounded m-2 task" onclick="location.href = '/task?title={{ .Title}}'">
+                                                        {{ .Title}}
+                                                </li>
+                                            {{end}}
+                                        {{end}}
+                                    </ul>
                                 {{end}}
-                              </ul>
                         </div>
                     </div>
                 </div>
